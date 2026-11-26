@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f7f5" />
+    <meta name="description" content="Learn a project through clear guides and practical sessions prepared from its workspace." />
+    <title>KT Console — Project learning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/learning.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@flagsmith/flagsmith@12.5.0/index.js" integrity="sha384-MqtZafl7JG1sX3PWTMcsks/3Mhp9QDc8TuZRyU0/fsk6YGj542Y7Fb49eFYZ7NYT" crossorigin="anonymous"></script>
+    <script type="module" src="/learning.js"></script>
+  </head>
+  <body>
+    <header class="learn-topbar"><a class="brand" href="/"><span class="brand-mark">kt</span><span>KT Console</span></a><span class="learner-label">Project learning</span></header>
+    <main class="learn-main">
+      <section id="dashboard" class="learn-dashboard">
+        <p class="eyebrow">YOUR PROJECTS</p>
+        <h1>Learn the work before you start.</h1>
+        <p class="learn-lede">Project overviews, guides, and practice prepared from the connected workspace.</p>
+        <div id="project-list" class="project-grid"><div class="loading-card">Loading learning spaces…</div></div>
+      </section>
+
+      <section id="project-view" class="project-view" hidden>
+        <button class="text-link back-link" id="back-to-projects" type="button">← All projects</button>
+        <div class="project-detail-heading"><div><p class="eyebrow" id="project-source"></p><h1 id="project-name"></h1></div><span class="project-tag">LEARNING SPACE</span></div>
+        <p class="project-gist" id="project-gist"></p>
+        <div class="level-filter" id="level-filter" hidden aria-label="Experience level">
+          <span>Choose your track</span><button type="button" data-level="all">All</button><button type="button" data-level="junior">Junior</button><button type="button" data-level="mid">Mid-level</button><button type="button" data-level="senior">Senior</button>
+        </div>
+        <div class="material-layout">
+          <section><h2>Project learning</h2><div id="material-list" class="material-list"></div></section>
+          <article id="material-content" class="material-content" hidden><p class="eyebrow" id="material-kind"></p><h2 id="material-title"></h2><div id="material-body"></div><div id="quiz-feedback" hidden></div></article>
+        </div>
+      </section>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <footer class="learn-footer">KT Console <span>·</span> A calmer way to get up to speed.</footer>
+    </main>
+  </body>
+</html>

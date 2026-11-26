@@ -6,13 +6,10 @@ compatibility_date = "2026-11-26"
 directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = ["/", "/api/*"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "kt-console"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
-
-[vars]
-# Set this to the client-side environment key from Flagsmith Cloud.
-FLAGSMITH_ENVIRONMENT_ID = ""
