@@ -55,7 +55,7 @@ The `.dev.vars.example` file lists the expected names without credentials. `.dev
 
 To initialize a Flagsmith Cloud project, create the `agent_qa`, `role_tracks`, and `guided_sessions` flags in the environment associated with `FLAGSMITH_ENVIRONMENT_ID`. Keep them disabled until the corresponding KT Console experience is ready. The app uses safe disabled defaults while the environment key is absent.
 
-Run the adapter smoke check with `npm run check:flagsmith-client`. This exercises the reusable wrapper with a fake SDK; an authenticated cloud connection still needs your environment values and agent-host MCP authorization.
+Run `npm run check:flagsmith-client` to smoke-check the reusable wrapper with a fake SDK. Run `npm run check:flagsmith-cloud` to make a read-only request to the configured Flagsmith environment. It reports only the HTTP result and number of flags, not keys or flag values.
 
 Deployment details are intentionally deferred for now.
 

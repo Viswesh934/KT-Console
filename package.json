@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check:flagsmith-client": "node scripts/check-flagsmith-client.mjs"
+    "check:flagsmith-client": "node scripts/check-flagsmith-client.mjs",
+    "check:flagsmith-cloud": "node scripts/check-flagsmith-cloud.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
