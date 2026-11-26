@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "flagsmith": {
+      "type": "http",
+      "url": "https://mcp.flagsmith.com",
+      "headers": {
+        "Authorization": "Api-Key ${FLAGSMITH_API_TOKEN}"
+      },
+      "tools": [
+        "list_organizations",
+        "list_projects_in_organization",
+        "list_project_environments",
+        "list_project_features",
+        "get_feature_flag",
+        "create_feature",
+        "update_feature",
+        "update_feature_state"
+      ]
+    }
+  }
+}

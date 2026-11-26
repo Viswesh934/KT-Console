@@ -1,0 +1,5 @@
+# Browser SDK environment key from Flagsmith Cloud (intended to be public).
+FLAGSMITH_ENVIRONMENT_ID=
+
+# Organization API key for the Flagsmith MCP server. Never commit the value.
+FLAGSMITH_API_TOKEN=

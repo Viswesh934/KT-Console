@@ -34,16 +34,30 @@ KT Console helps teams get a useful gist of a project and learn it through role-
 - Agent context is opt-in and minimized. The connected agent sends an approved gist and only task-relevant material, never the full workspace by default.
 - Project gist fields must not be treated as private secrets storage.
 
-## Run locally
+## Local configuration
 
-1. Install Node.js and run `npm install`.
-2. Create a local D1 database with `npx wrangler d1 create kt-console` and copy its ID into `wrangler.toml`.
-3. Apply the migration locally: `npx wrangler d1 migrations apply kt-console --local`.
-4. Start the app with `npm run dev`.
+Install Node.js dependencies with `npm install`. Deployment and local Worker setup are deferred while the integration foundation is built. Keep credentials in your execution host or private local environment files; never commit them.
 
-To use Cloud Flagsmith, set `FLAGSMITH_ENVIRONMENT_ID` in `wrangler.toml` to a **client-side environment key** from Flagsmith Cloud. Create the flags `agent_qa`, `role_tracks`, and `guided_sessions`. The UI uses safe disabled defaults if the key is empty.
+## Flagsmith client and MCP
 
-Deploy the frontend and Worker together with `npm run deploy`. Create the D1 database remotely and apply migrations with `npx wrangler d1 migrations apply kt-console --remote` first.
+KT Console uses the official Flagsmith JavaScript SDK through a small reusable adapter in `public/flagsmith-client.js`. Product code should call `flagsmithClient.hasFeature(...)`, `getValue(...)`, or `identify(...)` through that adapter instead of implementing flag evaluation itself. The browser receives only the Flagsmith **environment key**, which Flagsmith documents as the key used by its client SDK.
+
+The workspace `.mcp.json` connects compatible agents to Flagsmith's hosted MCP endpoint at `https://mcp.flagsmith.com`. It uses the documented `Authorization: Api-Key ...` header and limits the exposed tools to project and feature-flag operations. Set `FLAGSMITH_API_TOKEN` in the environment of the agent host before starting/restarting that host. This must be a Flagsmith **Organization API key**, not the browser environment key. Do not put either real key in this repository or in chat. For an interactive MCP client that supports OAuth, Flagsmith also supports browser sign-in instead of an API key.
+
+Required configuration names:
+
+- `FLAGSMITH_ENVIRONMENT_ID`: client-side environment key used by the web SDK. The Worker returns it to the browser for SDK initialization; it is designed to be public.
+- `FLAGSMITH_API_TOKEN`: organization API key used only by the local MCP client configuration. Keep it in the agent host's environment; never expose it to the browser or Worker API.
+
+See the [Flagsmith MCP server guide](https://docs.flagsmith.com/integrating-with-flagsmith/mcp-server) for authentication and supported tools. In the connected agent, a low-impact first check is to list accessible organizations, projects, environments, and features.
+
+The `.dev.vars.example` file lists the expected names without credentials. `.dev.vars` is ignored by Git. The Flagsmith MCP connection reads `FLAGSMITH_API_TOKEN` from the agent host environment, which is separate from the Worker environment.
+
+To initialize a Flagsmith Cloud project, create the `agent_qa`, `role_tracks`, and `guided_sessions` flags in the environment associated with `FLAGSMITH_ENVIRONMENT_ID`. Keep them disabled until the corresponding KT Console experience is ready. The app uses safe disabled defaults while the environment key is absent.
+
+Run the adapter smoke check with `npm run check:flagsmith-client`. This exercises the reusable wrapper with a fake SDK; an authenticated cloud connection still needs your environment values and agent-host MCP authorization.
+
+Deployment details are intentionally deferred for now.
 
 ## Current slice and limitations
 

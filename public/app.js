@@ -1,3 +1,5 @@
+import { flagsmithClient } from "./flagsmith-client.js";
+
 const api = async (path, options) => {
   const response = await fetch(path, { headers: { "content-type": "application/json" }, ...options });
   const data = await response.json();
@@ -56,13 +58,15 @@ document.querySelector("#copy-code").addEventListener("click", async (event) => 
 async function initFlags() {
   try {
     const { flagsmithEnvironmentId } = await api("/api/config");
-    if (!flagsmithEnvironmentId || !window.flagsmith) return;
-    window.flagsmith.init({ environmentID: flagsmithEnvironmentId, onChange: () => {
+    if (!flagsmithClient.init(flagsmithEnvironmentId)) return;
+    const applyFlags = () => {
       document.documentElement.dataset.flagsReady = "true";
-      document.documentElement.dataset.agentQa = String(window.flagsmith.hasFeature("agent_qa"));
-      document.documentElement.dataset.roleTracks = String(window.flagsmith.hasFeature("role_tracks"));
-      document.documentElement.dataset.guidedSessions = String(window.flagsmith.hasFeature("guided_sessions"));
-    } });
+      document.documentElement.dataset.agentQa = String(flagsmithClient.hasFeature("agent_qa"));
+      document.documentElement.dataset.roleTracks = String(flagsmithClient.hasFeature("role_tracks"));
+      document.documentElement.dataset.guidedSessions = String(flagsmithClient.hasFeature("guided_sessions"));
+    };
+    flagsmithClient.subscribe(applyFlags);
+    applyFlags();
   } catch { /* Flags have safe UI defaults until the Flagsmith key is configured. */ }
 }
 
