@@ -1,0 +1,4 @@
+.section-actions{display:flex;align-items:center;gap:16px}.button-outline{border:1px solid #dfe3dc;background:#fff;color:#536b55;padding:8px 11px;font-size:10px}.button-outline:hover{background:#f1f4ef}
+html[data-flags-ready="true"] .learning-card[data-flag]{display:none}
+html[data-role-tracks="true"] .learning-card[data-flag="role_tracks"],html[data-guided-sessions="true"] .learning-card[data-flag="guided_sessions"],html[data-agent-qa="true"] .learning-card[data-flag="agent_qa"]{display:block}
+@media(max-width:700px){.section-actions{gap:8px}.section-actions .text-link{display:none}}
