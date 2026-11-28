@@ -199,6 +199,91 @@ export default {
         return json({ flagsmithEnvironmentId: env.FLAGSMITH_ENVIRONMENT_ID || "" });
       }
 
+      if (url.pathname.startsWith("/api/mcp/")) {
+        const expectedToken = env.KT_CONSOLE_MCP_TOKEN;
+        const authHeader = request.headers.get("authorization") || "";
+        const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+        if (!expectedToken || !constantTimeEqual(bearer, expectedToken)) {
+          return json({ error: "Unauthorized MCP token." }, 401);
+        }
+
+        if (url.pathname === "/api/mcp/projects" && request.method === "GET") {
+          const { results } = await env.DB.prepare(
+            "SELECT id, name, gist, source_label, published, created_at FROM projects ORDER BY created_at DESC LIMIT 50",
+          ).all();
+          return json({ projects: results });
+        }
+
+        if (url.pathname === "/api/mcp/projects" && request.method === "POST") {
+          const body = await request.json();
+          const name = String(body.name || "").trim().slice(0, 100);
+          const gist = String(body.gist || "").trim().slice(0, 6000);
+          const sourceLabel = String(body.sourceLabel || "").trim().slice(0, 120);
+          if (name.length < 2 || gist.length < 20) {
+            return json({ error: "Project name and gist are required." }, 400);
+          }
+          const id = newId();
+          const code = newClaimCode();
+          await env.DB.prepare(
+            "INSERT INTO projects (id, name, gist, source_label, claim_code, claim_code_expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+          ).bind(id, name, gist, sourceLabel, code, claimCodeExpiryIso(7)).run();
+          return json({ project: { id, name, gist, source_label: sourceLabel, published: 0 } }, 201);
+        }
+
+        const mcpProjMatch = url.pathname.match(/^\/api\/mcp\/projects\/([^/]+)$/);
+        if (mcpProjMatch && request.method === "GET") {
+          const project = await env.DB.prepare(
+            "SELECT id, name, gist, source_label, published, created_at FROM projects WHERE id = ?",
+          ).bind(mcpProjMatch[1]).first();
+          if (!project) return json({ error: "Project not found." }, 404);
+          return json({ project });
+        }
+
+        const mcpMatsMatch = url.pathname.match(/^\/api\/mcp\/projects\/([^/]+)\/materials$/);
+        if (mcpMatsMatch && request.method === "POST") {
+          const projectId = mcpMatsMatch[1];
+          const project = await env.DB.prepare("SELECT id FROM projects WHERE id = ?").bind(projectId).first();
+          if (!project) return json({ error: "Project not found." }, 404);
+          const body = await request.json();
+          const kind = String(body.kind || "").trim().toLowerCase();
+          const level = String(body.level || "all").trim().toLowerCase();
+          const title = String(body.title || "").trim().slice(0, 160);
+          const content = String(body.content || "").trim().slice(0, 18000);
+          if (!title || !content) return json({ error: "Title and content are required." }, 400);
+          const id = newId();
+          await env.DB.prepare(
+            "INSERT INTO learning_materials (id, project_id, kind, level, title, body) VALUES (?, ?, ?, ?, ?, ?)",
+          ).bind(id, projectId, kind, level, title, content).run();
+          return json({ material: { id, project_id: projectId, kind, level, title } }, 201);
+        }
+
+        const mcpPubMatch = url.pathname.match(/^\/api\/mcp\/projects\/([^/]+)\/publish$/);
+        if (mcpPubMatch && request.method === "POST") {
+          const projectId = mcpPubMatch[1];
+          const counts = await env.DB.prepare(
+            `SELECT
+               SUM(CASE WHEN kind IN ('guide', 'edge_case') THEN 1 ELSE 0 END) AS guides,
+               SUM(CASE WHEN kind = 'quiz' THEN 1 ELSE 0 END) AS quizzes
+             FROM learning_materials WHERE project_id = ?`,
+          ).bind(projectId).first();
+          if (!counts?.guides || !counts?.quizzes) {
+            return json({ error: "Add at least one guide/edge case and one quiz before publishing." }, 400);
+          }
+          await env.DB.prepare("UPDATE projects SET published = 1 WHERE id = ?").bind(projectId).run();
+          return json({ ok: true, published: 1 });
+        }
+
+        const mcpScoresMatch = url.pathname.match(/^\/api\/mcp\/projects\/([^/]+)\/scores$/);
+        if (mcpScoresMatch && request.method === "GET") {
+          const { results } = await env.DB.prepare(
+            "SELECT learner_id, material_id, score, total, completed_at FROM quiz_attempts WHERE project_id = ? ORDER BY completed_at DESC LIMIT 100",
+          ).bind(mcpScoresMatch[1]).all();
+          return json({ scores: results });
+        }
+
+        return json({ error: "Not found." }, 404);
+      }
+
       if (url.pathname === "/api/auth/me" && request.method === "GET") {
         const user = await getSessionUser(request, env);
         return json({ user });
@@ -519,6 +604,53 @@ export default {
 
         await env.DB.prepare("DELETE FROM members WHERE id = ? AND project_id = ?").bind(memberId, projectId).run();
         return json({ ok: true });
+      }
+
+      const projectMatsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/materials$/);
+      if (projectMatsMatch && request.method === "GET") {
+        const projectId = projectMatsMatch[1];
+        const membership = await getMembership(env, projectId, user.id);
+        if (!membership) return json({ error: "Project not found." }, 404);
+
+        const project = await env.DB.prepare(
+          "SELECT id, name, gist, source_label, published FROM projects WHERE id = ?",
+        ).bind(projectId).first();
+        if (!project) return json({ error: "Project not found." }, 404);
+
+        const { results } = await env.DB.prepare(
+          "SELECT id, kind, level, title, body, answer_key, source_note, created_at FROM learning_materials WHERE project_id = ? ORDER BY created_at DESC",
+        ).bind(projectId).all();
+        return json({ project, materials: results });
+      }
+
+      const attemptsMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/attempts$/);
+      if (attemptsMatch && request.method === "POST") {
+        const projectId = attemptsMatch[1];
+        const membership = await getMembership(env, projectId, user.id);
+        if (!membership) return json({ error: "Project not found." }, 404);
+
+        const body = await request.json();
+        const materialId = String(body.materialId || "").trim();
+        const answers = Array.isArray(body.answers) ? body.answers : [];
+        const material = await env.DB.prepare(
+          "SELECT id, body FROM learning_materials WHERE id = ? AND project_id = ?",
+        ).bind(materialId, projectId).first();
+        if (!material) return json({ error: "Quiz not found." }, 404);
+
+        const quiz = JSON.parse(material.body);
+        const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+        let score = 0;
+        const feedback = questions.map((q, i) => {
+          const correct = Number(answers[i]) === Number(q.correctIndex);
+          if (correct) score += 1;
+          return { correct, explanation: q.explanation || "" };
+        });
+
+        await env.DB.prepare(
+          "INSERT INTO quiz_attempts (id, project_id, material_id, learner_id, score, total, answers_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).bind(newId(), projectId, materialId, membership.id, score, questions.length, JSON.stringify(answers)).run();
+
+        return json({ score, total: questions.length, feedback });
       }
 
       if (url.pathname === "/api/materials" && request.method === "GET") {
