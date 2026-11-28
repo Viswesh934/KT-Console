@@ -1,5 +1,10 @@
 {
   "mcpServers": {
+    "kt-console": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["mcp/server.js"]
+    },
     "flagsmith": {
       "type": "http",
       "url": "https://mcp.flagsmith.com",
