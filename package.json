@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "mcp": "node mcp/server.js",
     "check:flagsmith-client": "node scripts/check-flagsmith-client.mjs",
     "check:flagsmith-cloud": "node scripts/check-flagsmith-cloud.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "zod": "^4.0.0"
   }
 }
