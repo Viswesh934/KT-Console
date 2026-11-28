@@ -29,6 +29,8 @@ let currentUser = null;
 let authMode = "login";
 let activeProject = null;
 let activeTab = "overview";
+let cachedProjects = [];
+let editingMaterialId = null;
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (character) => ({
@@ -38,6 +40,13 @@ function escapeHtml(text) {
     '"': "&quot;",
     "'": "&#39;",
   }[character]));
+}
+
+function timeGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 function setAuthMode(mode) {
@@ -50,6 +59,7 @@ function setAuthMode(mode) {
   const nameInput = nameField.querySelector("input");
   nameField.hidden = !isRegister;
   nameInput.required = isRegister;
+  document.querySelector("#demo-login-bar").hidden = isRegister;
   document.querySelector("#auth-title").textContent = isRegister ? "Create your account" : "Sign in to KT Console";
   document.querySelector("#auth-submit").innerHTML = isRegister ? "Create account <span>→</span>" : "Sign in <span>→</span>";
   document.querySelector("#auth-error").textContent = "";
@@ -73,7 +83,7 @@ function renderAuthUI() {
     name.textContent = currentUser.display_name;
     email.textContent = currentUser.email;
     actionBtn.textContent = "Sign out";
-    welcomeTitle.textContent = `Good morning, ${firstName}`;
+    welcomeTitle.textContent = `${timeGreeting()}, ${firstName}`;
     const joinNameInput = document.querySelector("#join-form input[name='displayName']");
     if (joinNameInput && !joinNameInput.value) joinNameInput.value = currentUser.display_name;
   } else {
@@ -104,6 +114,14 @@ function requireSignedIn(callback) {
   callback();
 }
 
+function updateSidebarActive(hash) {
+  const target = hash.startsWith("#project/") ? "#projects" : (hash || "#home");
+  document.querySelectorAll(".sidebar .nav-item").forEach((item) => {
+    const href = item.getAttribute("href");
+    item.classList.toggle("active", href === target || (target === "#how-it-works" && href === "#home"));
+  });
+}
+
 document.querySelector("#auth-action").addEventListener("click", async () => {
   if (!currentUser) {
     openAuthDialog("login");
@@ -112,6 +130,7 @@ document.querySelector("#auth-action").addEventListener("click", async () => {
   await api("/api/auth/logout", { method: "POST" });
   currentUser = null;
   activeProject = null;
+  cachedProjects = [];
   location.hash = "home";
   renderAuthUI();
   await handleRoute();
@@ -120,6 +139,26 @@ document.querySelector("#auth-action").addEventListener("click", async () => {
 
 document.querySelectorAll(".auth-tab").forEach((tab) => {
   tab.addEventListener("click", () => setAuthMode(tab.dataset.authMode));
+});
+
+document.querySelectorAll("[data-demo-role]").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const isOwner = btn.dataset.demoRole === "owner";
+    const email = isOwner ? "owner@ktconsole.dev" : "member@ktconsole.dev";
+    const password = isOwner ? "OwnerPass123!" : "MemberPass123!";
+    const error = document.querySelector("#auth-error");
+    error.textContent = "";
+    try {
+      const result = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      currentUser = result.user;
+      authDialog.close();
+      renderAuthUI();
+      await handleRoute();
+      toast(`Signed in as ${currentUser.display_name}.`);
+    } catch (cause) {
+      error.textContent = cause.message;
+    }
+  });
 });
 
 document.querySelectorAll("#new-project,#hero-create").forEach((button) => {
@@ -144,9 +183,24 @@ document.querySelectorAll("dialog").forEach((dialog) => {
   });
 });
 
+document.querySelectorAll(".learning-card[data-flag]").forEach((card) => {
+  card.addEventListener("click", () => {
+    requireSignedIn(() => {
+      if (!cachedProjects.length) {
+        projectDialog.showModal();
+        toast("Create a project first to open its learning space.");
+        return;
+      }
+      activeTab = card.dataset.flag === "agent_qa" ? "agent" : "learning";
+      location.hash = `project/${cachedProjects[0].id}`;
+    });
+  });
+});
+
 async function loadProjects() {
   const list = document.querySelector("#project-list");
   if (!currentUser) {
+    cachedProjects = [];
     list.innerHTML = `<div class="empty-card"><div class="empty-copy"><strong>Sign in to view your projects</strong><p>Create a workspace or join your team using a claim code.</p></div><button class="button button-primary" id="empty-signin">Sign in <span>→</span></button></div>`;
     document.querySelector("#empty-signin").addEventListener("click", () => openAuthDialog("login"));
     return;
@@ -154,6 +208,7 @@ async function loadProjects() {
 
   try {
     const { projects } = await api("/api/projects");
+    cachedProjects = projects;
     if (!projects.length) {
       list.innerHTML = `<div class="empty-card"><div class="empty-copy"><strong>Your first project starts here</strong><p>Create a space for your team to learn the project together.</p></div><button class="button button-primary" id="empty-create">Create a project <span>→</span></button></div>`;
       document.querySelector("#empty-create").addEventListener("click", () => projectDialog.showModal());
@@ -190,6 +245,18 @@ document.querySelectorAll(".pv-tab").forEach((tab) => {
   tab.addEventListener("click", () => setActivePvTab(tab.dataset.pvTab));
 });
 
+function resetMaterialForm() {
+  editingMaterialId = null;
+  const form = document.querySelector("#pv-material-form");
+  form.reset();
+  document.querySelector("#pv-material-form-title").textContent = "ADD LEARNING MATERIAL";
+  document.querySelector("#pv-material-submit").textContent = "Add material";
+  document.querySelector("#pv-material-cancel").hidden = true;
+  document.querySelector("#pv-material-error").textContent = "";
+}
+
+document.querySelector("#pv-material-cancel").addEventListener("click", resetMaterialForm);
+
 async function openProjectView(projectId) {
   if (!currentUser) {
     homeView.hidden = false;
@@ -215,6 +282,8 @@ async function openProjectView(projectId) {
     document.querySelector("#pv-settings-tab").hidden = !isOwner;
     document.querySelector("#pv-overview-form").hidden = !isOwner;
     document.querySelector("#pv-material-form").hidden = !isOwner;
+    document.querySelector("#pv-load-starter").hidden = !isOwner;
+    resetMaterialForm();
 
     if (isOwner) {
       const ovForm = document.querySelector("#pv-overview-form");
@@ -230,10 +299,15 @@ async function openProjectView(projectId) {
     levelSelect.value = project.my_experience_level || "mid";
     identifyFlagsmithUser(levelSelect.value);
 
-    document.querySelector("#pv-qa-status-text").textContent = project.agent_qa_enabled
+    const qaEnabled = Boolean(project.agent_qa_enabled);
+    document.querySelector("#pv-qa-status-text").textContent = qaEnabled
       ? "Agent Q&A is enabled for this project"
       : "Agent Q&A is currently disabled by the project owner";
     document.querySelector("#pv-qa-scope-pill").textContent = project.agent_qa_scope || "gist_and_materials";
+    document.querySelector("#pv-qa-disabled-banner").hidden = qaEnabled;
+    document.querySelector("#pv-qa-go-settings").hidden = !isOwner;
+    document.querySelector("#pv-qa-question").disabled = !qaEnabled;
+    document.querySelector("#pv-qa-submit").disabled = !qaEnabled;
     document.querySelector("#pv-qa-result").hidden = true;
     document.querySelector("#pv-device-output").hidden = true;
 
@@ -244,6 +318,10 @@ async function openProjectView(projectId) {
     location.hash = "home";
   }
 }
+
+document.querySelector("#pv-qa-go-settings").addEventListener("click", () => {
+  setActivePvTab("settings");
+});
 
 function identifyFlagsmithUser(level) {
   if (!currentUser) return;
@@ -278,8 +356,9 @@ async function loadMaterials() {
     const isOwner = activeProject.my_role === "owner";
     list.innerHTML = visible.map((m) => {
       const done = m.progress_status === "completed";
-      const deleteBtn = isOwner
-        ? `<button class="button-danger-text" type="button" data-delete-material="${m.id}">Delete</button>`
+      const isInteractive = m.kind === "quiz" || m.kind === "guided_session";
+      const ownerActions = isOwner
+        ? `<div class="pv-material-actions"><button class="button-link-text" type="button" data-edit-material="${m.id}">Edit</button><button class="button-danger-text" type="button" data-delete-material="${m.id}">Delete</button></div>`
         : "";
       const answerBlock = done && m.answer_key
         ? `<div class="pv-answer-key"><strong>Answer / Rubric:</strong> ${escapeHtml(m.answer_key)}</div>`
@@ -287,6 +366,9 @@ async function loadMaterials() {
       const sourceBlock = m.source_note
         ? `<div class="pv-material-source">Source: ${escapeHtml(m.source_note)}</div>`
         : "";
+      const progressControls = isInteractive
+        ? `<div class="pv-progress-row"><input type="text" data-response-input="${m.id}" value="${escapeHtml(m.my_response || "")}" placeholder="Write your answer or thinking..." /><button class="button button-outline" type="button" data-complete-material="${m.id}">${done ? "Update answer" : "Submit & check rubric"}</button></div>`
+        : `<div class="pv-progress-row"><button class="button button-outline" type="button" data-complete-material="${m.id}">${done ? "✓ Marked as read" : "Mark as read"}</button></div>`;
       return `<article class="pv-material-card" data-material="${m.id}">
         <div class="pv-material-top">
           <div class="pv-material-badges">
@@ -294,16 +376,13 @@ async function loadMaterials() {
             <span class="role-pill">${escapeHtml(m.level)}</span>
             ${done ? `<span class="project-tag">✓ COMPLETED</span>` : ""}
           </div>
-          ${deleteBtn}
+          ${ownerActions}
         </div>
         <h3>${escapeHtml(m.title)}</h3>
         <p class="pv-material-body">${escapeHtml(m.body)}</p>
         ${sourceBlock}
         ${answerBlock}
-        <div class="pv-progress-row">
-          <input type="text" data-response-input="${m.id}" value="${escapeHtml(m.my_response || "")}" placeholder="${m.kind === "quiz" || m.kind === "guided_session" ? "Write your answer or notes..." : "Optional reflection notes..."}" />
-          <button class="button button-outline" type="button" data-complete-material="${m.id}">${done ? "Update response" : "Mark complete"}</button>
-        </div>
+        ${progressControls}
       </article>`;
     }).join("");
 
@@ -324,10 +403,30 @@ async function loadMaterials() {
       });
     });
 
+    list.querySelectorAll("[data-edit-material]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const mat = materials.find((item) => item.id === btn.dataset.editMaterial);
+        if (!mat) return;
+        editingMaterialId = mat.id;
+        const form = document.querySelector("#pv-material-form");
+        form.elements.kind.value = mat.kind;
+        form.elements.level.value = mat.level;
+        form.elements.title.value = mat.title;
+        form.elements.body.value = mat.body;
+        form.elements.sourceNote.value = mat.source_note || "";
+        form.elements.answerKey.value = mat.answer_key || "";
+        document.querySelector("#pv-material-form-title").textContent = "EDIT LEARNING MATERIAL";
+        document.querySelector("#pv-material-submit").textContent = "Save changes";
+        document.querySelector("#pv-material-cancel").hidden = false;
+        form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+
     list.querySelectorAll("[data-delete-material]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         try {
           await api(`/api/materials/${btn.dataset.deleteMaterial}`, { method: "DELETE" });
+          if (editingMaterialId === btn.dataset.deleteMaterial) resetMaterialForm();
           toast("Material deleted.");
           await loadMaterials();
         } catch (cause) {
@@ -339,6 +438,46 @@ async function loadMaterials() {
     list.innerHTML = `<div class="form-error">${escapeHtml(cause.message)}</div>`;
   }
 }
+
+document.querySelector("#pv-load-starter").addEventListener("click", async () => {
+  if (!activeProject) return;
+  const starterItems = [
+    {
+      kind: "guide",
+      level: "junior",
+      title: `Getting oriented in ${activeProject.name}`,
+      body: "Start with the approved project gist, then review the main entry points and how requests flow through the app.",
+      sourceNote: "Project Overview",
+      answerKey: "",
+    },
+    {
+      kind: "edge_case",
+      level: "mid",
+      title: "Permissions & seat limits",
+      body: "Check how owner-only actions, expired claim codes, and seat-limit boundaries are enforced before modifying team flows.",
+      sourceNote: "Access Control",
+      answerKey: "",
+    },
+    {
+      kind: "quiz",
+      level: "all",
+      title: "Quick check: Scoped Agent Context",
+      body: "What context is shared with Agent Q&A when enabled by the project owner?",
+      sourceNote: "Security & Privacy",
+      answerKey: "Only the approved project gist and (if enabled) task-relevant learning materials—never the full private workspace.",
+    },
+  ];
+  try {
+    await Promise.all(starterItems.map((item) => api("/api/materials", {
+      method: "POST",
+      body: JSON.stringify({ projectId: activeProject.id, ...item }),
+    })));
+    toast("Starter kit added.");
+    await loadMaterials();
+  } catch (cause) {
+    toast(cause.message);
+  }
+});
 
 async function loadAgentConnections() {
   if (!activeProject) return;
@@ -422,12 +561,20 @@ document.querySelector("#pv-material-form").addEventListener("submit", async (ev
   const err = document.querySelector("#pv-material-error");
   err.textContent = "";
   try {
-    await api("/api/materials", {
-      method: "POST",
-      body: JSON.stringify({ projectId: activeProject.id, ...data }),
-    });
-    form.reset();
-    toast("Learning material added.");
+    if (editingMaterialId) {
+      await api(`/api/materials/${editingMaterialId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      toast("Learning material updated.");
+    } else {
+      await api("/api/materials", {
+        method: "POST",
+        body: JSON.stringify({ projectId: activeProject.id, ...data }),
+      });
+      toast("Learning material added.");
+    }
+    resetMaterialForm();
     await loadMaterials();
   } catch (cause) {
     err.textContent = cause.message;
@@ -468,11 +615,18 @@ document.querySelector("#pv-device-start-form").addEventListener("submit", async
     document.querySelector("#pv-device-output").hidden = false;
     document.querySelector("#pv-user-code").textContent = result.userCode;
     document.querySelector("#pv-device-code").textContent = result.deviceCode;
+    document.querySelector("#pv-copy-device-code").dataset.token = result.deviceCode;
+    document.querySelector("#pv-device-curl").textContent = `curl -X POST ${location.origin}/api/projects/${activeProject.id}/agent-qa \\\n  -H "Content-Type: application/json" \\\n  -H "X-Agent-Device-Code: ${result.deviceCode}" \\\n  -d '{"question":"What does this project do?"}'`;
     await loadAgentConnections();
     toast("Device code generated. Approve it using the user code.");
   } catch (cause) {
     toast(cause.message);
   }
+});
+
+document.querySelector("#pv-copy-device-code").addEventListener("click", async (event) => {
+  await navigator.clipboard.writeText(event.currentTarget.dataset.token || "");
+  toast("Device token copied.");
 });
 
 document.querySelector("#pv-device-approve-form").addEventListener("submit", async (event) => {
@@ -622,11 +776,18 @@ document.querySelector("#project-form").addEventListener("submit", async (event)
     document.querySelector("#success-title").textContent = `${result.project.name} is ready`;
     document.querySelector("#claim-code").textContent = result.project.claim_code;
     document.querySelector("#copy-code").dataset.code = result.project.claim_code;
+    document.querySelector("#open-created-project").dataset.projectId = result.project.id;
     successDialog.showModal();
     await loadProjects();
   } catch (cause) {
     error.textContent = cause.message;
   }
+});
+
+document.querySelector("#open-created-project").addEventListener("click", (event) => {
+  const id = event.currentTarget.dataset.projectId;
+  successDialog.close();
+  if (id) location.hash = `project/${id}`;
 });
 
 document.querySelector("#join-form").addEventListener("submit", async (event) => {
@@ -640,7 +801,7 @@ document.querySelector("#join-form").addEventListener("submit", async (event) =>
     joinDialog.close();
     form.reset();
     toast(`You joined ${result.project.name}.`);
-    await loadProjects();
+    location.hash = `project/${result.project.id}`;
   } catch (cause) {
     error.textContent = cause.message;
   }
@@ -652,6 +813,7 @@ document.querySelector("#copy-code").addEventListener("click", async (event) => 
 });
 
 async function handleRoute() {
+  updateSidebarActive(location.hash);
   const match = location.hash.match(/^#project\/([^/]+)$/);
   if (match) {
     await openProjectView(match[1]);

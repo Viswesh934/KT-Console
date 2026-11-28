@@ -566,9 +566,37 @@ export default {
         }, 201);
       }
 
-      const materialDeleteMatch = url.pathname.match(/^\/api\/materials\/([^/]+)$/);
-      if (materialDeleteMatch && request.method === "DELETE") {
-        const materialId = materialDeleteMatch[1];
+      const materialMatch = url.pathname.match(/^\/api\/materials\/([^/]+)$/);
+      if (materialMatch && request.method === "PATCH") {
+        const materialId = materialMatch[1];
+        const material = await env.DB.prepare("SELECT * FROM learning_materials WHERE id = ?").bind(materialId).first();
+        if (!material) return json({ error: "Material not found." }, 404);
+        const membership = await getMembership(env, material.project_id, user.id);
+        if (!membership || membership.role !== "owner") return json({ error: "Only the project owner can edit materials." }, 403);
+
+        const body = await request.json();
+        const kind = body.kind !== undefined ? String(body.kind).trim().toLowerCase() : material.kind;
+        const level = body.level !== undefined ? String(body.level).trim().toLowerCase() : material.level;
+        const title = body.title !== undefined ? String(body.title).trim().slice(0, 140) : material.title;
+        const content = body.body !== undefined ? String(body.body).trim().slice(0, 8000) : material.body;
+        const answerKey = body.answerKey !== undefined ? String(body.answerKey).trim().slice(0, 2000) : material.answer_key;
+        const sourceNote = body.sourceNote !== undefined ? String(body.sourceNote).trim().slice(0, 300) : material.source_note;
+
+        if (!VALID_KINDS.has(kind)) return json({ error: "Invalid material kind." }, 400);
+        if (!VALID_LEVELS.has(level)) return json({ error: "Invalid material level." }, 400);
+        if (!title || !content) return json({ error: "Title and content are required." }, 400);
+
+        await env.DB.prepare(
+          "UPDATE learning_materials SET kind = ?, level = ?, title = ?, body = ?, answer_key = ?, source_note = ? WHERE id = ?",
+        ).bind(kind, level, title, content, answerKey, sourceNote, materialId).run();
+
+        return json({
+          material: { id: materialId, project_id: material.project_id, kind, level, title, body: content, answer_key: answerKey, source_note: sourceNote },
+        });
+      }
+
+      if (materialMatch && request.method === "DELETE") {
+        const materialId = materialMatch[1];
         const material = await env.DB.prepare("SELECT id, project_id FROM learning_materials WHERE id = ?").bind(materialId).first();
         if (!material) return json({ error: "Material not found." }, 404);
         const membership = await getMembership(env, material.project_id, user.id);

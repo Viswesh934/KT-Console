@@ -165,6 +165,7 @@
               <strong id="pv-progress-summary">0 of 0 completed</strong>
             </div>
             <div class="pv-track-controls">
+              <button class="button button-outline" id="pv-load-starter" type="button" hidden>Load starter kit</button>
               <label class="inline-label">Experience level
                 <select id="pv-level-select">
                   <option value="junior">Junior</option>
@@ -179,7 +180,10 @@
           <div id="pv-materials-list" class="pv-materials-list"></div>
 
           <form class="pv-card pv-form" id="pv-material-form" hidden>
-            <p class="eyebrow">ADD LEARNING MATERIAL</p>
+            <div class="pv-form-header">
+              <p class="eyebrow" id="pv-material-form-title">ADD LEARNING MATERIAL</p>
+              <button class="button-danger-text" id="pv-material-cancel" type="button" hidden>Cancel edit</button>
+            </div>
             <div class="pv-form-grid">
               <label>Kind
                 <select name="kind">
@@ -203,7 +207,7 @@
             <label>Source / Context note <span class="optional">Optional</span><input name="sourceNote" maxlength="300" placeholder="e.g. src/worker.js" /></label>
             <label>Expected answer / Rubric <span class="optional">Optional (for quizzes)</span><textarea name="answerKey" rows="2" maxlength="2000" placeholder="Key points to check after answering"></textarea></label>
             <div class="form-error" id="pv-material-error" role="alert"></div>
-            <button class="button button-primary" type="submit">Add material</button>
+            <button class="button button-primary" id="pv-material-submit" type="submit">Add material</button>
           </form>
         </section>
 
@@ -216,10 +220,14 @@
               </div>
               <span class="role-pill" id="pv-qa-scope-pill">gist_and_materials</span>
             </div>
+            <div id="pv-qa-disabled-banner" class="pv-disabled-banner" hidden>
+              <span id="pv-qa-disabled-msg">Agent Q&amp;A is disabled by the project owner.</span>
+              <button class="button button-outline" id="pv-qa-go-settings" type="button" hidden>Enable in Owner settings →</button>
+            </div>
             <form class="pv-form" id="pv-qa-form">
-              <label>Ask about this project<textarea name="question" rows="2" required maxlength="1000" placeholder="Ask a question using only approved project context..."></textarea></label>
+              <label>Ask about this project<textarea name="question" id="pv-qa-question" rows="2" required maxlength="1000" placeholder="Ask a question using only approved project context..."></textarea></label>
               <div class="form-error" id="pv-qa-error" role="alert"></div>
-              <button class="button button-primary" type="submit">Ask project Q&amp;A</button>
+              <button class="button button-primary" id="pv-qa-submit" type="submit">Ask project Q&amp;A</button>
             </form>
             <div id="pv-qa-result" class="pv-qa-result" hidden>
               <p class="eyebrow">ANSWER (FROM APPROVED CONTEXT)</p>
@@ -236,8 +244,12 @@
               <button class="button button-outline" type="submit">Generate device code</button>
             </form>
             <div id="pv-device-output" class="pv-device-output" hidden>
-              <div><span>User code (approve below):</span> <strong id="pv-user-code"></strong></div>
-              <div><span>Device token (for X-Agent-Device-Code header):</span> <code id="pv-device-code"></code></div>
+              <div><span>1. User code (approve below):</span> <strong id="pv-user-code"></strong></div>
+              <div class="pv-token-row">
+                <div><span>2. Device token:</span> <code id="pv-device-code"></code></div>
+                <button class="button button-outline" id="pv-copy-device-code" type="button">Copy token</button>
+              </div>
+              <div><span>3. Example CLI request:</span><pre id="pv-device-curl" class="pv-curl-snippet"></pre></div>
             </div>
             <form class="pv-inline-form" id="pv-device-approve-form">
               <input name="userCode" maxlength="12" placeholder="Enter user code (e.g. ABCD-1234)" required />
@@ -304,8 +316,11 @@
       <p class="eyebrow">PROJECT CREATED</p>
       <h2 id="success-title">Your project is ready</h2>
       <p class="modal-intro">Share this team claim code with the people you want to invite.</p>
-      <div class="claim-code" id="claim-code"></div><button class="button button-primary modal-submit"
-        id="copy-code">Copy claim code</button>
+      <div class="claim-code" id="claim-code"></div>
+      <div class="success-actions">
+        <button class="button button-outline modal-submit" id="copy-code" type="button">Copy claim code</button>
+        <button class="button button-primary modal-submit" id="open-created-project" type="button">Open project <span>→</span></button>
+      </div>
       <p class="security-note">Anyone with this code can join until the seat limit is reached. Share it with care.</p>
     </div>
   </dialog>
@@ -324,6 +339,11 @@
       <label>Password<input name="password" type="password" required minlength="8" placeholder="At least 8 characters" /></label>
       <div class="form-error" id="auth-error" role="alert"></div>
       <button class="button button-primary modal-submit" id="auth-submit" type="submit">Sign in <span>→</span></button>
+      <div class="demo-login-bar" id="demo-login-bar">
+        <span>Quick demo:</span>
+        <button class="button button-outline" type="button" data-demo-role="owner">Demo Owner</button>
+        <button class="button button-outline" type="button" data-demo-role="member">Demo Member</button>
+      </div>
     </form>
   </dialog>
 
